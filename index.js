@@ -1,141 +1,25 @@
 const express = require("express");
-//const paypal = require("paypal-rest-sdk");
 const paypal = require("@paypal/checkout-server-sdk");
+const _ = require("lodash");
 
-const mongoose = require('mongoose');
-const MongoClient = require('mongodb').MongoClient;
+const Order = require('./db/order.js');
 
-const url = 'mongodb://localhost:27017';
-mongoose.connect(url, { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() => {
-    console.log('Connected successfully to MongoDB server');
-    // Further code here
-  })
-  .catch(err => console.error('Connection error:', err));
-
-const Schema = mongoose.Schema;
-
-const transactionSchema = new Schema({
-    currency: String,
-    //qty: Number,
-    price: String
-  });
-  
-  // Create a model
-//const Transaction = mongoose.model('Transaction', transactionSchema);
-
-  // Insert a document
-// const transaction = new Transaction({ price: '100', currency: 'CAD' });
-// transaction.save()
-//   .then(savedTransaction => {
-//     console.log('Transaction saved:', savedTransaction);
-//   })
-//   .catch(err => console.error('Save error:', err));
-
-// // Find documents
-// Transaction.find({ name: 'John' })
-//   .then(allTransactions => {
-//     console.log('Transactions found:', allTransactions);
-//   })
-//   .catch(err => console.error('Find error:', err));
-
-// paypal.configure({
-//   mode: "sandbox", //sandbox or live
-//   client_id:
-//     "ASGwCcPLZE8Xzts1LNPWMTp0gOtiVR86A-nBy6GiyLycYpiYWzua3Wc-VXFCEE2CngoBnRCnwPXtALrO",
-//   client_secret:
-//     "ENGoTViTunBPrOgKiOUCUVitLYyFJw_ipNWg7ViavDEo5xEkoJnt10wFUUqc4cOspmJ2_MdPL1_3nMev",
-// });
-
-const clientId = "ASGwCcPLZE8Xzts1LNPWMTp0gOtiVR86A-nBy6GiyLycYpiYWzua3Wc-VXFCEE2CngoBnRCnwPXtALrO";
-const clientSecret = "ENGoTViTunBPrOgKiOUCUVitLYyFJw_ipNWg7ViavDEo5xEkoJnt10wFUUqc4cOspmJ2_MdPL1_3nMev";
-const environment = new paypal.core.SandboxEnvironment(clientId, clientSecret);
+const PAYPAL_CLIENT_ID = "ASGwCcPLZE8Xzts1LNPWMTp0gOtiVR86A-nBy6GiyLycYpiYWzua3Wc-VXFCEE2CngoBnRCnwPXtALrO";
+const PAYPAL_CLIENT_SECRET = "ENGoTViTunBPrOgKiOUCUVitLYyFJw_ipNWg7ViavDEo5xEkoJnt10wFUUqc4cOspmJ2_MdPL1_3nMev";
+const environment = new paypal.core.SandboxEnvironment(PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET);
 const paypalClient = new paypal.core.PayPalHttpClient(environment);
 
 const PORT = process.env.PORT || 3000;
 
 const app = express();
 
-app.get("/", (req, res) => res.sendFile(__dirname + "/index.html"));
-app.get("/success", (req, res) => res.sendFile(__dirname + "/success.html"));
+// Serve static files
+app.get("/", (_, res) => res.sendFile(__dirname + "/index.html"));
+app.get("/success", (_, res) => res.sendFile(__dirname + "/success.html"));
+app.get("/error", (_, res) => res.sendFile(__dirname + "/error.html"));
+app.get("/cancel", (_, res) => res.sendFile(__dirname + "/cancelled.html"));
 
-// app.post("/pay", (req, res) => {
-//   const create_payment_json = {
-//     intent: "Book Fair",
-//     payer: {
-//       payment_method: "paypal",
-//     },
-//     redirect_urls: {
-//       return_url: "https://paypalnode.com/success",
-//       cancel_url: "https://paypalnode.com/cancel",
-//     },
-//     transactions: [
-//       {
-//         books_list: {
-//           books: [
-//             {
-//               name: "Mobile Data Mangement",
-//               Author: "Shivali Dhaka",
-//               price: "50.00",
-//               currency: "CAD",
-//               quantity: 10,
-//             },
-//           ],
-//         },
-//         amount: {
-//           currency: "CAD",
-//           total: "500.00",
-//         },
-//         description: "Mobile Data Managemnt course Book",
-//       },
-//     ],
-//   };
-
-//   paypal.payment.create(create_payment_json, function (error, payment) {
-//     if (error) {
-//       console.log(error)
-//       throw error;
-//     } else {
-//       for (let i = 0; i < payment.links.length; i++) {
-//         if (payment.links[i].rel === "approval_url") {
-//           res.redirect(payment.links[i].href);
-//         }
-//       }
-//     }
-//   });
-// });
-
-// app.get("/success", (req, res) => {
-//   const payerId = req.query.PayerID;
-//   const paymentId = req.query.paymentId;
-
-//   const execute_payment_json = {
-//     payer_id: payerId,
-//     transactions: [
-//       {
-//         amount: {
-//           currency: "USD",
-//           total: "5.00",
-//         },
-//       },
-//     ],
-//   };
-
-//   paypal.payment.execute(paymentId, execute_payment_json, function (
-//     error,
-//     payment
-//   ) {
-//     if (error) {
-//       console.log(error.response);
-//       throw error;
-//     } else {
-//       console.log(JSON.stringify(payment));
-//       res.send("Success");
-//     }
-//   });
-// });
-
-app.post("/pay", async (req, res) => {
+app.post("/pay", async (_, res) => {
   const request = new paypal.orders.OrdersCreateRequest();
   request.prefer("return=representation");
   request.requestBody({
@@ -152,7 +36,7 @@ app.post("/pay", async (req, res) => {
             },
           },
         },
-        description: "Mobile Data Management course Book",
+        description: "Mobile Data Management Course Book",
         items: [
           {
             name: "Mobile Data Management",
@@ -166,8 +50,8 @@ app.post("/pay", async (req, res) => {
       },
     ],
     application_context: {
-      return_url: "http://localhost:3000/success",
-      cancel_url: "https://developer.paypal.com/home",
+      return_url: "http://localhost:3000/approved",
+      cancel_url: "http://localhost:3000/cancel",
     },
   });
 
@@ -177,33 +61,61 @@ app.post("/pay", async (req, res) => {
     res.redirect(approvalUrl);
   } catch (error) {
     console.error("Failed to create order:", error);
-    res.status(500).send("Failed to create order");
+    res.redirect("/error");
   }
 });
 
-app.get("/success", async (req, res) => {
-  const orderId = req.query.orderId;
-  const request = new paypal.orders.OrdersGetRequest(orderId);
-
+app.get("/approved", async (req, res) => {
   try {
-    const order = await paypalClient.execute(request);
-    const captureId = order.result.purchase_units[0].payments.captures[0].id;
+    const { token } = req.query;
 
-    // Capture the payment
-    const captureRequest = new paypal.payments.CapturesCaptureRequest(captureId);
-    captureRequest.requestBody({});
+    const request = new paypal.orders.OrdersCaptureRequest(token);
+    request.requestBody({});
+    const { result } = await paypalClient.execute(request);
 
-    const capture = await paypalClient.execute(captureRequest);
-    console.log("Capture details:", capture.result);
-    res.send("Payment captured successfully");
+    const dbOrder = new Order({
+      orderId: result.id,
+      status: result.status,
+      payer: {
+        name: result.payer.name.given_name + " " + result.payer.name.surname,
+        phone: _.get(result, "result.payer.phone.phone_number.national_number"),
+        email: _.get(result, "result.payer.email_address"),
+        payerId: _.get(result, "result.payer.payer_id"),
+      },
+      links: result.links,
+      purchaseUnits: result.purchase_units.map((unit) => ({
+        referenceId: unit.reference_id,
+        payments: unit.payments.captures.map((payment) => ({
+          paymentId: payment.id,
+          createTime: payment.create_time,
+          finalCapture: payment.final_capture,
+          amount: {
+            currencyCode: payment.amount.currency_code,
+            value: payment.amount.value,
+          },
+        })),
+        shipping: {
+          fullName: unit.shipping.name.full_name,
+          address: {
+            addressLineOne: unit.shipping.address.address_line_1,
+            adminAreaOne: unit.shipping.address.admin_area_1,
+            adminAreaTwo: unit.shipping.address.admin_area_2,
+            postalCode: unit.shipping.address.postal_code,
+            countryCode: unit.shipping.address.country_code,
+          },
+        }
+      })),
+    });
+
+    await dbOrder.save();
+
+    console.log(dbOrder);
+
+    res.redirect('/success')
   } catch (error) {
     console.error("Failed to capture payment:", error);
-    res.status(500).send("Failed to capture payment");
+    res.redirect("/error")
   }
 });
 
-app.get("/cancel", (req, res) => res.send("Cancelled"));
-
-
 app.listen(PORT, () => console.log(`Server Started on ${PORT}`));
-mongoose.connection.close();
